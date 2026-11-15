@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://maheen-joga.github.io/sitemap.xml
