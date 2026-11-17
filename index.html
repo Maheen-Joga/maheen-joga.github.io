@@ -169,6 +169,12 @@ em{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:-.0
 .lex b{font-weight:600;margin-right:.3rem}
 .lex .der b{color:#86A6FF}.lex .die b{color:#FF93B4}.lex .das b{color:var(--gold)}
 .lex span{color:var(--mut);margin-left:.4rem}
+.br{display:grid;gap:.8rem}
+.br-btns{display:flex;flex-wrap:wrap;gap:.5rem}
+.br-log{min-height:3.2rem;font:400 .8125rem/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--gold)}
+.br-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+.br-row div{padding:.7rem .8rem;border-radius:.9rem;box-shadow:inset 0 0 0 1px var(--ln);background:rgba(243,238,228,.04)}
+.br-row b{display:block;font:700 1.6rem/1 var(--display);font-variant-numeric:tabular-nums;margin-top:.25rem}
 .dawn{position:relative;flex:1;min-height:14rem;margin:-.35rem;border-radius:1.1rem;overflow:hidden;background:linear-gradient(#0A2547,#0F4476 60%,#2C6AA6);touch-action:pan-y;--t:.3;--g:.6}
 .dawn .lit{position:absolute;inset:0;background:linear-gradient(transparent 25%,rgba(255,170,90,.7));opacity:var(--g);transition:opacity .5s var(--ease)}
 .arm{position:absolute;left:50%;bottom:-60%;height:135%;width:0;transform-origin:50% 100%;transform:rotate(calc((var(--t) - .5)*110deg));transition:transform .5s var(--ease)}
@@ -466,6 +472,16 @@ const demos = {
       const show = () => { const [en, f, c, lex] = S[k % S.length]; $('#wz-en', el).textContent = en; $('#wz-f', el).textContent = f; $('#wz-c', el).textContent = c;
         $('#wz-lex', el).innerHTML = lex.map(([a, w, m]) => `<li class="${a}">${a ? `<b>${a}</b>` : ''}${w}<span>${m}</span></li>`).join(''); wz.style.opacity = 1; };
       $('#wz-n', el).addEventListener('click', () => { k++; wz.style.opacity = 0; setTimeout(show, reduce ? 0 : 280); }); show(); } },
+  bridge: { html: `<div class="br"><span class="d-label">Send an event to the bridge</span><div class="br-btns"><button class="d-btn" data-e="ok">New purchase order</button><button class="d-btn" data-e="dup">Same event again</button><button class="d-btn" data-e="bad">Broken event</button></div>
+      <p class="br-log" id="br-log" aria-live="polite">Nothing sent yet.</p>
+      <div class="br-row"><div><span class="d-label">Stored</span><b id="br-p">0</b></div><div><span class="d-label">Duplicate</span><b id="br-d">0</b></div><div><span class="d-label">Rejected</span><b id="br-r">0</b></div></div>
+      <p class="d-note">Illustration of the rules in the repository. The bridge is not deployed, and this page does not call AWS.</p></div>`,
+    init(el) { const seen = new Set(), n = { p: 0, d: 0, r: 0 }, log = $('#br-log', el); let id = 4500000000, last = null;
+      const out = (k, t) => { n[k]++; $('#br-' + k, el).textContent = n[k]; log.textContent = t; };
+      $$('[data-e]', el).forEach(b => b.addEventListener('click', () => { const e = b.dataset.e;
+        if (e === 'ok') { last = 'PO ' + (++id); seen.add(last); out('p', last + ' is valid and new. Archived to S3, written to DynamoDB.'); }
+        else if (e === 'dup') { if (!last) { log.textContent = 'Send a purchase order first, then replay it.'; return; } out('d', last + ' was already stored. The conditional write refuses it, no second row.'); }
+        else out('r', 'Event fails validation (no purchase order id). Sent to the dead-letter queue and kept in S3 for review.'); })); } },
   dawn: { html: `<div class="dawn" id="dawn"><i class="lit"></i><div class="arm"><i></i></div><i class="hill"></i><span>Move across to raise the sun</span></div>`,
     init(el) { const d = $('#dawn', el); d.addEventListener('pointermove', e => { const r = d.getBoundingClientRect(), t = clamp((e.clientX - r.left) / r.width);
       d.style.setProperty('--t', t.toFixed(3)); d.style.setProperty('--g', (1 - Math.abs(t - .5) * 2).toFixed(3)); }); } },
@@ -494,6 +510,7 @@ const work = [
   ['vault', '255,106,43', 'Security', 'Python, Flask', 'VaultKey', 'An encrypted password manager. AES-256-GCM entries, PBKDF2 key derivation, bcrypt logins, CSRF checks and an audit log. Ships with a threat model that states its limits.', ['22 tests', 'CI', 'Threat model'], 'https://github.com/Maheen-Joga/vaultkey', 'Repository'],
   ['slot', '25,194,168', 'Operations', 'Python', 'Warehouse Slotting Optimizer', 'Puts fast-moving items closer to the picker and measures the walk. In the repository benchmark on synthetic orders, popularity slotting cut return-route distance by about 53%.', ['27 tests', 'Forecast backtest', 'Standard library only'], 'https://github.com/Maheen-Joga/warehouse-slotting-optimizer', 'Repository'],
   ['wort', '74,107,255', 'Language', 'Translation kit', 'WORTZUG', 'A German trainer. Every translation comes back as structured data with formal and colloquial variants and a word-by-word lexicon with der, die, das.', ['24 offline tests', 'Bring your own key'], 'https://github.com/Maheen-Joga/wortzug-kit', 'Repository'],
+  ['bridge', '255,153,0', 'Cloud', 'AWS, Python', 'SAP Event Bridge', 'Takes purchase order events from an SAP system, checks them, and stores each one once. Bad events go to a dead-letter queue. Written as CloudFormation and Lambda, tested with moto. Being published step by step.', ['In progress', 'CloudFormation', 'Mock SAP source'], 'https://github.com/Maheen-Joga/sap-event-bridge', 'Repository'],
   ['dawn', '255,196,107', 'Client work', 'Cloudflare', 'Rising Tutors', 'Website for a coaching class in Bharuch, India, built around a sunrise that follows the visitor down the page. Plus a question-paper builder on Cloudflare Workers and D1. Launching soon.', ['Client project', 'Pages, Workers, D1', 'SEO setup'], 'https://risingtutors.in', 'risingtutors.in'],
   ['gomoku', '154,107,255', 'Game AI', 'University', 'Gomoku Agent', 'A five-in-a-row playing agent, built to compete in my university AI tournament. Play a round against a smaller cousin of it.', ['Tournament entry'], '', 'Tournament code not public yet'],
   ['gantt', '255,92,138', 'Research', 'Operating systems', 'PA-ESJF Scheduling', 'A hybrid CPU scheduling algorithm that combines Enhanced Shortest Job First with preemptive priority. Co-authored paper.', ['Co-authored', 'Submitted for publication'], '', 'Paper submitted, not public yet']
@@ -502,7 +519,7 @@ const stack = $('#stack');
 stack.innerHTML = work.map(([d, tint, kind, tech, title, text, chips, url, label], i) => `
   <article class="proj" style="--i:${i};--tint-c:${tint}"><div class="proj-in"><div class="proj-core">
     <div class="proj-copy">
-      <div class="proj-meta"><span>${String(i + 1).padStart(2, '0')} / 06 · ${kind}</span><span>${tech}</span></div>
+      <div class="proj-meta"><span>${String(i + 1).padStart(2, '0')} / ${String(work.length).padStart(2, '0')} · ${kind}</span><span>${tech}</span></div>
       <h3>${title}</h3><p>${text}</p>
       <ul class="chips">${chips.map(c => `<li>${c}</li>`).join('')}</ul>
       <div class="proj-foot">${url ? `<a class="btn ghost magnet" href="${url}" target="_blank" rel="noopener" data-cur="Open"><span class="btn-in">${label}<span class="ico"><svg class="i"><use href="#ar"/></svg></span></span></a>` : label}</div>
