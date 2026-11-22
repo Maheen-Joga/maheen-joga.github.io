@@ -175,6 +175,18 @@ em{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:-.0
 .br-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
 .br-row div{padding:.7rem .8rem;border-radius:.9rem;box-shadow:inset 0 0 0 1px var(--ln);background:rgba(243,238,228,.04)}
 .br-row b{display:block;font:700 1.6rem/1 var(--display);font-variant-numeric:tabular-nums;margin-top:.25rem}
+.d-row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:end}
+.d-row label{display:grid;gap:.3rem;flex:1;min-width:8rem}
+.d-row .d-input{padding:.6rem .8rem;font:500 .9rem var(--body);color-scheme:dark}
+.verdict{font:700 clamp(1.4rem,2.4vw,1.9rem)/1.1 var(--display);letter-spacing:-.03em}
+.verdict.bad{color:#FF8A7A}.verdict.good{color:#7EE0A8}
+.d-area{width:100%;min-height:7.5rem;resize:vertical;background:rgba(243,238,228,.06);border:0;box-shadow:inset 0 0 0 1px var(--ln);border-radius:.9rem;padding:.75rem .9rem;color:var(--ivory);font:400 .75rem/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.finds{display:grid;gap:.35rem;font-size:.8125rem}
+.finds li{display:flex;gap:.5rem;align-items:baseline}
+.sev{font-size:.625rem;letter-spacing:.12em;text-transform:uppercase;padding:.1rem .45rem;border-radius:99px;box-shadow:inset 0 0 0 1px currentColor}
+.sev.h{color:#FF8A7A}.sev.m{color:var(--gold)}.sev.l{color:var(--mut)}
+.ss-out{font:400 .75rem/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;color:#CBD2E0;max-height:9.5em;overflow:auto}
+.ss-out mark{background:rgba(126,224,168,.16);color:#7EE0A8;border-radius:3px;padding:0 .15em}
 .dawn{position:relative;flex:1;min-height:14rem;margin:-.35rem;border-radius:1.1rem;overflow:hidden;background:linear-gradient(#0A2547,#0F4476 60%,#2C6AA6);touch-action:pan-y;--t:.3;--g:.6}
 .dawn .lit{position:absolute;inset:0;background:linear-gradient(transparent 25%,rgba(255,170,90,.7));opacity:var(--g);transition:opacity .5s var(--ease)}
 .arm{position:absolute;left:50%;bottom:-60%;height:135%;width:0;transform-origin:50% 100%;transform:rotate(calc((var(--t) - .5)*110deg));transition:transform .5s var(--ease)}
@@ -482,6 +494,45 @@ const demos = {
         if (e === 'ok') { last = 'PO ' + (++id); seen.add(last); out('p', last + ' is valid and new. Archived to S3, written to DynamoDB.'); }
         else if (e === 'dup') { if (!last) { log.textContent = 'Send a purchase order first, then replay it.'; return; } out('d', last + ' was already stored. The conditional write refuses it, no second row.'); }
         else out('r', 'Event fails validation (no purchase order id). Sent to the dead-letter queue and kept in S3 for review.'); })); } },
+  shift: { html: `<div class="d-row"><label><span class="d-label">Late shift ends</span><input class="d-input" type="time" id="sh-a" value="22:00"></label>
+      <label><span class="d-label">Next shift starts</span><input class="d-input" type="time" id="sh-b" value="06:00"></label></div>
+      <p class="verdict" id="sh-v" aria-live="polite"></p><p class="d-note" id="sh-n"></p>`,
+    init(el) { const a = $('#sh-a', el), b = $('#sh-b', el), v = $('#sh-v', el), n = $('#sh-n', el), m = t => { const [h, mi] = t.split(':').map(Number); return h * 60 + mi; };
+      const run = () => { let gap = m(b.value) - m(a.value); if (gap <= 0) gap += 1440; const h = Math.floor(gap / 60), mm = String(gap % 60).padStart(2, '0'), ok = gap >= 660;
+        v.textContent = `${h}:${mm} h rest`; v.className = 'verdict ' + (ok ? 'good' : 'bad');
+        n.textContent = ok ? 'Meets the 11 hours of § 5 ArbZG.' : `REST_UNDER_11H, § 5 Abs. 1 ArbZG: ${Math.floor((660 - gap) / 60)}:${String((660 - gap) % 60).padStart(2, '0')} h short. The full tool also checks breaks, daily hours, Sundays and night work.`; };
+      a.addEventListener('input', run); b.addEventListener('input', run); run(); } },
+  gdpr: { html: `<span class="d-label">Paste some HTML</span><textarea class="d-area" id="gd-in" spellcheck="false"></textarea><ul class="finds" id="gd-out" aria-live="polite"></ul>`,
+    init(el) { const inp = $('#gd-in', el), out = $('#gd-out', el);
+      inp.value = '<link href="https://fonts.googleapis.com/css2?family=Inter" rel="stylesheet">\n<script src="https://www.googletagmanager.com/gtag/js?id=G-1"><\/script>\n<iframe src="https://www.youtube.com/embed/abc"></iframe>\n<form action="http://shop.example-store.de/newsletter">'; // dsgvo-audit: ignore (sample text for the demo, never loaded)
+      const R = [[/fonts\.(googleapis|gstatic)\.com/i, 'h', 'Google Fonts loaded from Google', 'LG München I, 3 O 17493/20'],
+        [/googletagmanager\.com|google-analytics\.com|connect\.facebook\.net|static\.hotjar\.com|clarity\.ms/i, 'h', 'Tracker and no consent tool', '§ 25 TDDDG'],
+        [/youtube\.com\/embed|google\.[a-z.]+\/maps\/embed|player\.vimeo\.com/i, 'm', 'Embed loads on page view', '§ 25 TDDDG'],
+        [/(action\s*=\s*|fetch\(\s*)["']http:\/\/(?!localhost)/i, 'm', 'Data sent over plain HTTP', 'GDPR Art. 32']];
+      const run = () => { const hits = R.filter(([re]) => re.test(inp.value));
+        out.innerHTML = hits.length ? hits.map(([, s, t, l]) => `<li><span class="sev ${s}">${s === 'h' ? 'high' : 'medium'}</span>${t}<span class="d-note">${l}</span></li>`).join('')
+          : '<li class="d-note">No findings in this snippet. The real scanner has 14 rules and runs on whole projects.</li>'; };
+      inp.addEventListener('input', run); run(); } },
+  brief: { html: `<div class="d-row"><label><span class="d-label">Date on the Bescheid</span><input class="d-input" type="date" id="bf-d" value="2026-11-20"></label></div>
+      <div><span class="d-label">Your Widerspruch must arrive by</span><p class="verdict good" id="bf-v" aria-live="polite"></p></div><p class="d-note" id="bf-n"></p>`,
+    init(el) { const d = $('#bf-d', el), v = $('#bf-v', el), n = $('#bf-n', el), fmt = x => x.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+      const run = () => { if (!d.value) return; const p = new Date(d.value + 'T00:00:00Z'), known = new Date(p); known.setUTCDate(p.getUTCDate() + 4);
+        const end = new Date(known), day = known.getUTCDate(); end.setUTCDate(1); end.setUTCMonth(end.getUTCMonth() + 1);
+        end.setUTCDate(Math.min(day, new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate()));
+        const moved = new Date(end); while ([0, 6].includes(moved.getUTCDay())) moved.setUTCDate(moved.getUTCDate() + 1);
+        v.textContent = fmt(moved);
+        n.textContent = `Counted as delivered on ${fmt(known)}, the fourth day after posting (the rule since 2025). ` + (moved > end ? 'The month ends on a weekend, so it moves to Monday. ' : '') + 'This demo skips public holidays; the tool knows all 16 states.'; };
+      d.addEventListener('input', run); run(); } },
+  safe: { html: `<span class="d-label">Before you paste a log</span><textarea class="d-area" id="ss-in" spellcheck="false"></textarea><span class="d-label">What gets shared</span><div class="ss-out" id="ss-out" aria-live="polite"></div>`,
+    init(el) { const inp = $('#ss-in', el), out = $('#ss-out', el), tok = 'gh' + 'p_' + 'r4Nd0mDemoT0kenOnly' + 'x9Kq2Lw8Zp3Vb7Ty1';
+      inp.value = `ERROR charge failed for maria@gmail.com from 84.163.22.17\nDB postgres://shop:Winter2026!@db1.internal:5432\nGITHUB_TOKEN=${tok}\nretry for maria@gmail.com`;
+      const R = [['GITHUB_TOKEN', /\bgh[pousr]_[A-Za-z0-9]{36,}/g], ['PASSWORD', /(?<=:\/\/[^\s:\/@]+:)[^\s@\/]+(?=@)/g],
+        ['EMAIL', /\b[\w.%+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}\b/g], ['IP', /\b(?:\d{1,3}\.){3}\d{1,3}\b/g]];
+      const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      const run = () => { const map = new Map(), n = {}; let t = inp.value;
+        for (const [lab, re] of R) t = t.replace(re, v => { const k = lab + v; if (!map.has(k)) { n[lab] = (n[lab] || 0) + 1; map.set(k, `\u0000${lab}_${n[lab]}\u0001`); } return map.get(k); });
+        out.innerHTML = esc(t).replace(/\u0000(\w+)\u0001/g, '<mark>&lt;$1&gt;</mark>'); };
+      inp.addEventListener('input', run); run(); } },
   dawn: { html: `<div class="dawn" id="dawn"><i class="lit"></i><div class="arm"><i></i></div><i class="hill"></i><span>Move across to raise the sun</span></div>`,
     init(el) { const d = $('#dawn', el); d.addEventListener('pointermove', e => { const r = d.getBoundingClientRect(), t = clamp((e.clientX - r.left) / r.width);
       d.style.setProperty('--t', t.toFixed(3)); d.style.setProperty('--g', (1 - Math.abs(t - .5) * 2).toFixed(3)); }); } },
@@ -510,7 +561,11 @@ const work = [
   ['vault', '255,106,43', 'Security', 'Python, Flask', 'VaultKey', 'An encrypted password manager. AES-256-GCM entries, PBKDF2 key derivation, bcrypt logins, CSRF checks and an audit log. Ships with a threat model that states its limits.', ['22 tests', 'CI', 'Threat model'], 'https://github.com/Maheen-Joga/vaultkey', 'Repository'],
   ['slot', '25,194,168', 'Operations', 'Python', 'Warehouse Slotting Optimizer', 'Puts fast-moving items closer to the picker and measures the walk. In the repository benchmark on synthetic orders, popularity slotting cut return-route distance by about 53%.', ['27 tests', 'Forecast backtest', 'Standard library only'], 'https://github.com/Maheen-Joga/warehouse-slotting-optimizer', 'Repository'],
   ['wort', '74,107,255', 'Language', 'Translation kit', 'WORTZUG', 'A German trainer. Every translation comes back as structured data with formal and colloquial variants and a word-by-word lexicon with der, die, das.', ['24 offline tests', 'Bring your own key'], 'https://github.com/Maheen-Joga/wortzug-kit', 'Repository'],
-  ['bridge', '255,153,0', 'Cloud', 'AWS, Python', 'SAP Event Bridge', 'Takes purchase order events from an SAP system, checks them, and stores each one once. Bad events go to a dead-letter queue. Written as CloudFormation and Lambda, tested with moto. Being published step by step.', ['In progress', 'CloudFormation', 'Mock SAP source'], 'https://github.com/Maheen-Joga/sap-event-bridge', 'Repository'],
+  ['bridge', '255,153,0', 'Cloud', 'AWS, Python', 'SAP Event Bridge', 'Takes purchase order events from an SAP system, checks them, and stores each one once. Bad events go to a dead-letter queue. Written as CloudFormation and Lambda, tested against mocked AWS; not yet deployed to a real account.', ['62 tests', 'CloudFormation', 'Mock SAP source'], 'https://github.com/Maheen-Joga/sap-event-bridge', 'Repository'],
+  ['safe', '126,224,168', 'Developer tool', 'Python, Claude skill', 'share-safe', 'Makes logs and error messages safe to paste into a GitHub issue or another AI. API keys, passwords, emails and IPs become placeholders, and the same value always gets the same one, so the log still reads.', ['In progress', 'Claude skill', 'No dependencies'], 'https://github.com/Maheen-Joga/share-safe', 'Repository'],
+  ['gdpr', '99,185,255', 'Privacy', 'Python, Claude skill', 'dsgvo-audit', 'Scans a website or app for the GDPR problems that get German projects into trouble: Google Fonts from Google, trackers before consent, passwords in logs. Each finding cites the law or ruling and the fix.', ['In progress', 'Claude skill', '14 rules'], 'https://github.com/Maheen-Joga/dsgvo-audit', 'Repository'],
+  ['shift', '255,170,90', 'HR tech', 'Python', 'ArbZG Shift Check', 'Checks shift rosters against the German Working Hours Act: daily hours, breaks, the 11-hour rest, Sundays, holidays and night work. Every finding names its section. Built from what I see in warehouse rostering.', ['126 tests', 'All 16 states', 'Not legal advice'], 'https://github.com/Maheen-Joga/arbzg-shift-check', 'Repository'],
+  ['brief', '230,200,120', 'Everyday Germany', 'Python, Claude skill', 'german-letters', 'Writes the formal German letter you need, cancellation, objection or GDPR request, laid out to DIN 5008, with the deadline worked out and every paragraph explained in English.', ['In progress', 'Claude skill', 'DIN 5008'], 'https://github.com/Maheen-Joga/german-letters', 'Repository'],
   ['dawn', '255,196,107', 'Client work', 'Cloudflare', 'Rising Tutors', 'Website for a coaching class in Bharuch, India, built around a sunrise that follows the visitor down the page. Plus a question-paper builder on Cloudflare Workers and D1. Launching soon.', ['Client project', 'Pages, Workers, D1', 'SEO setup'], 'https://risingtutors.in', 'risingtutors.in'],
   ['gomoku', '154,107,255', 'Game AI', 'University', 'Gomoku Agent', 'A five-in-a-row playing agent, built to compete in my university AI tournament. Play a round against a smaller cousin of it.', ['Tournament entry'], '', 'Tournament code not public yet'],
   ['gantt', '255,92,138', 'Research', 'Operating systems', 'PA-ESJF Scheduling', 'A hybrid CPU scheduling algorithm that combines Enhanced Shortest Job First with preemptive priority. Co-authored paper.', ['Co-authored', 'Submitted for publication'], '', 'Paper submitted, not public yet']
